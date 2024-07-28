@@ -1,1 +1,4 @@
-# Strongest-Invincible-Super-Ultra-God-God-God-Downloader
+# 最強無敵スーパーウルトラ神神神ダウンローダー
+なんかもうありそうだけど自作したかったから作った
+ffmpeg付属
+違法にアップロードされた動画をダウンロードする行為は法律で禁じられているらしい
