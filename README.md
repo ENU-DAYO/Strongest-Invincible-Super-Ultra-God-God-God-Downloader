@@ -9,4 +9,4 @@ python環境なくても動かせるようにしてる
 
 違法にアップロードされた動画をダウンロードする行為は法律で禁じられているらしい
 
-[使えるサイト](./supported site.md)
+[使えるサイト](https://github.com/ENU-DAYO/Strongest-Invincible-Super-Ultra-God-God-God-Downloader/blob/main/supported%20site.md)
