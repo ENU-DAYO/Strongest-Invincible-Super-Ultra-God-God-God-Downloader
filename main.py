@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from yt_dlp import YoutubeDL
 import os
 import datetime
@@ -10,6 +10,7 @@ import re
 # Define the config file path in the same directory as the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 config_file = os.path.join(script_dir, 'settings.ini')
+log_file = os.path.join(script_dir, 'download_log.txt')
 
 def load_settings():
     config = configparser.ConfigParser()
@@ -24,6 +25,10 @@ def save_settings(save_path):
     with open(config_file, 'w') as configfile:
         config.write(configfile)
 
+def write_log(message):
+    with open(log_file, 'a') as log:
+        log.write(f'{datetime.datetime.now()}: {message}\n')
+
 def download_video_thread():
     url = url_entry.get()
     save_path = save_path_entry.get()
@@ -36,17 +41,24 @@ def download_video_thread():
         'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
         'progress_hooks': [progress_hook]
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(url, download=True)
-        downloaded_file = ydl.prepare_filename(result)
-    
-    # Update the file's modification time to today
-    now = datetime.datetime.now().timestamp()
-    os.utime(downloaded_file, (now, now))
-    
-    # Update status label
-    status_label.configure(text="ダウンロード完了")
-    progress_bar.set(1.0)
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(url, download=True)
+            downloaded_file = ydl.prepare_filename(result)
+
+        # Update the file's modification time to today
+        now = datetime.datetime.now().timestamp()
+        os.utime(downloaded_file, (now, now))
+        
+        # Update status label
+        status_label.configure(text="ダウンロード完了")
+        progress_bar.set(1.0)
+        write_log(f"ダウンロード完了: {downloaded_file}")
+    except Exception as e:
+        error_message = f"ダウンロードに失敗しました: {str(e)}"
+        status_label.configure(text="ダウンロードに失敗しました")
+        write_log(error_message)
+        messagebox.showerror("エラー", error_message)
 
 def progress_hook(d):
     if d['status'] == 'downloading':
