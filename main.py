@@ -6,11 +6,16 @@ import datetime
 import configparser
 import threading
 import re
+import subprocess
 
 # Define the config file path in the same directory as the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 config_file = os.path.join(script_dir, 'settings.ini')
 log_file = os.path.join(script_dir, 'download_log.txt')
+
+# Add ffmpeg directory to PATH
+ffmpeg_dir = script_dir  # Assuming ffmpeg is in the same directory as the script
+os.environ['PATH'] += os.pathsep + ffmpeg_dir
 
 def load_settings():
     config = configparser.ConfigParser()
@@ -26,8 +31,21 @@ def save_settings(save_path):
         config.write(configfile)
 
 def write_log(message):
-    with open(log_file, 'a') as log:
+    with open(log_file, 'a', encoding='utf-8') as log:
         log.write(f'{datetime.datetime.now()}: {message}\n')
+
+def check_and_update_ytdlp():
+    try:
+        # Check for updates
+        result = subprocess.run(['yt-dlp', '--update'], capture_output=True, text=True)
+        if 'Updated yt-dlp' in result.stdout or 'yt-dlp is up to date' in result.stdout:
+            write_log("yt-dlpは最新の状態です。")
+        else:
+            write_log("yt-dlpの更新中にエラーが発生しました。")
+            write_log(result.stdout)
+            write_log(result.stderr)
+    except Exception as e:
+        write_log(f"yt-dlpの更新に失敗しました: {str(e)}")
 
 def download_video_thread():
     url = url_entry.get()
@@ -54,6 +72,17 @@ def download_video_thread():
         status_label.configure(text="ダウンロード完了")
         progress_bar.set(1.0)
         write_log(f"ダウンロード完了: {downloaded_file}")
+    except UnicodeEncodeError as e:
+        if 'cp932' in str(e):
+            # Handle cp932 encoding error gracefully
+            status_label.configure(text="ダウンロード完了 (一部のログのエンコードに失敗しました)")
+            progress_bar.set(1.0)
+            write_log(f"ダウンロード完了 (一部のログのエンコードに失敗しました): {downloaded_file}")
+        else:
+            error_message = f"エンコードエラー: {str(e)}"
+            status_label.configure(text="エンコードエラー")
+            write_log(error_message)
+            messagebox.showerror("エラー", error_message)
     except Exception as e:
         error_message = f"ダウンロードに失敗しました: {str(e)}"
         status_label.configure(text="ダウンロードに失敗しました")
@@ -127,5 +156,8 @@ progress_bar.set(0.0)
 # Status label
 status_label = ctk.CTkLabel(frame, text="", font=("Yu Gothic", 14))
 status_label.grid(row=5, columnspan=3, pady=10)
+
+# Check for yt-dlp updates
+check_and_update_ytdlp()
 
 root.mainloop()
