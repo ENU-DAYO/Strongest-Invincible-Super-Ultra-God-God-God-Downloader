@@ -44,21 +44,57 @@ def check_and_update_ytdlp():
             write_log("yt-dlpの更新中にエラーが発生しました。")
             write_log(result.stdout)
             write_log(result.stderr)
+    except FileNotFoundError:  # Ignore the specific error when the file is not found
+        pass  # Simply ignore this error
     except Exception as e:
         write_log(f"yt-dlpの更新に失敗しました: {str(e)}")
 
 def download_video_thread():
     url = url_entry.get()
-    save_path = save_path_entry.get()
+    save_path = save_path_entry.get()  # ここでsave_pathを取得
+    file_name = file_name_entry.get()
+
+    # ファイル形式の選択
+    if format_var.get() == "mp4":
+        ext = "mp4"
+        ydl_opts = {
+            'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',  # MP4動画フォーマット
+            'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
+        }
+    elif format_var.get() == "mp3":
+        ext = "mp3"
+        ydl_opts = {
+            'format': 'bestaudio/best',  # 最良の音声フォーマット
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }]
+        }
+    elif format_var.get() == "wav":
+        ext = "wav"
+        ydl_opts = {
+            'format': 'bestaudio/best',  # 最良の音声フォーマット
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+            }]
+        }
+    else:
+        messagebox.showerror("エラー", "少なくとも1つの形式を選択してください。")
+        return
+
     save_settings(save_path)
-    ydl_opts = {
-        'outtmpl': f'{save_path}/%(title)s.%(ext)s',
-        'add-header': 'Accept-Language:ja-JP',
-        'embed-thumbnail': True,
-        'embed-metadata': True,
-        'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
-        'progress_hooks': [progress_hook]
-    }
+
+    # ファイル名が空の場合、デフォルトのファイル名を使用
+    if not file_name:
+        file_name = '%(title)s'
+
+    # ダウンロード設定に出力パスとファイル名を追加
+    ydl_opts['outtmpl'] = os.path.join(save_path, f'{file_name}.%(ext)s')  # ここでsave_pathを使います
+    ydl_opts['add-header'] = 'Accept-Language:ja-JP'
+    ydl_opts['progress_hooks'] = [progress_hook]
+
     try:
         with YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(url, download=True)
@@ -67,22 +103,13 @@ def download_video_thread():
         # Update the file's modification time to today
         now = datetime.datetime.now().timestamp()
         os.utime(downloaded_file, (now, now))
-        
+
         # Update status label
         status_label.configure(text="ダウンロード完了")
         progress_bar.set(1.0)
         write_log(f"ダウンロード完了: {downloaded_file}")
-    except UnicodeEncodeError as e:
-        if 'cp932' in str(e):
-            # Handle cp932 encoding error gracefully
-            status_label.configure(text="ダウンロード完了 (一部のログのエンコードに失敗しました)")
-            progress_bar.set(1.0)
-            write_log(f"ダウンロード完了 (一部のログのエンコードに失敗しました): {downloaded_file}")
-        else:
-            error_message = f"エンコードエラー: {str(e)}"
-            status_label.configure(text="エンコードエラー")
-            write_log(error_message)
-            messagebox.showerror("エラー", error_message)
+    except FileNotFoundError:  # Ignore the specific error when the file is not found
+        pass  # Simply ignore this error
     except Exception as e:
         error_message = f"ダウンロードに失敗しました: {str(e)}"
         status_label.configure(text="ダウンロードに失敗しました")
@@ -96,6 +123,7 @@ def progress_hook(d):
         progress_bar.set(progress)
     elif d['status'] == 'finished':
         progress_bar.set(1.0)
+        status_label.configure(text="ダウンロード完了！")  # ここでテキストを変更します
 
 def download_video():
     status_label.configure(text="ダウンロード中...")
@@ -144,20 +172,42 @@ last_save_path = load_settings()
 if last_save_path:
     save_path_entry.insert(0, last_save_path)
 
+# ファイル名入力欄
+ctk.CTkLabel(frame, text="ファイル名", font=("Yu Gothic", 14)).grid(row=3, column=0, padx=10, pady=10)
+file_name_entry = ctk.CTkEntry(frame, width=600, font=("Yu Gothic", 14))
+file_name_entry.grid(row=3, column=1, padx=10, pady=10)
+
+# フォーマット選択ラジオボタン (横並び)
+format_var = ctk.StringVar(value="mp4")  # デフォルトでmp4を選択
+
+ctk.CTkLabel(frame, text="フォーマット", font=("Yu Gothic", 14)).grid(row=4, column=0, padx=10, pady=10)
+
+# MP4, MP3, WAV のラジオボタンを横に並べる
+radio_frame = ctk.CTkFrame(frame)
+radio_frame.grid(row=4, column=1, columnspan=2, pady=10)  # 横に広げる
+
+mp4_radio = ctk.CTkRadioButton(radio_frame, text="mp4", variable=format_var, value="mp4", font=("Yu Gothic", 14))
+mp4_radio.grid(row=0, column=0, padx=10)
+
+mp3_radio = ctk.CTkRadioButton(radio_frame, text="wav", variable=format_var, value="mp3", font=("Yu Gothic", 14))
+mp3_radio.grid(row=0, column=1, padx=10)
+
+wav_radio = ctk.CTkRadioButton(radio_frame, text="mp3", variable=format_var, value="wav", font=("Yu Gothic", 14))
+wav_radio.grid(row=0, column=2, padx=10)
+
 # Download button
 download_button = ctk.CTkButton(frame, text="ダウンロード", command=download_video, font=("Yu Gothic", 14))
-download_button.grid(row=3, columnspan=3, pady=20)
+download_button.grid(row=5, columnspan=3, pady=20)
 
-# Progress bar
-progress_bar = ctk.CTkProgressBar(frame, width=600)
-progress_bar.grid(row=4, columnspan=3, pady=10)
-progress_bar.set(0.0)
-
-# Status label
+# Status label and progress bar
 status_label = ctk.CTkLabel(frame, text="", font=("Yu Gothic", 14))
-status_label.grid(row=5, columnspan=3, pady=10)
+status_label.grid(row=6, columnspan=3, pady=10)
 
-# Check for yt-dlp updates
+progress_bar = ctk.CTkProgressBar(frame)
+progress_bar.grid(row=7, columnspan=3, padx=10, pady=10)
+
+# Check for updates on startup
 check_and_update_ytdlp()
 
+# Start the GUI loop
 root.mainloop()
