@@ -51,33 +51,33 @@ def check_and_update_ytdlp():
 
 def download_video_thread():
     url = url_entry.get()
-    save_path = save_path_entry.get()  # ここでsave_pathを取得
+    save_path = save_path_entry.get()
     file_name = file_name_entry.get()
 
     # ファイル形式の選択
     if format_var.get() == "mp4":
         ext = "mp4"
         ydl_opts = {
-            'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',  # MP4動画フォーマット
+            'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
             'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
         }
     elif format_var.get() == "mp3":
         ext = "mp3"
         ydl_opts = {
-            'format': 'bestaudio/best',  # 最良の音声フォーマット
+            'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
+                'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }]
         }
     elif format_var.get() == "wav":
         ext = "wav"
         ydl_opts = {
-            'format': 'bestaudio/best',  # 最良の音声フォーマット
+            'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
+                'preferredcodec': 'wav',
             }]
         }
     else:
@@ -91,7 +91,7 @@ def download_video_thread():
         file_name = '%(title)s'
 
     # ダウンロード設定に出力パスとファイル名を追加
-    ydl_opts['outtmpl'] = os.path.join(save_path, f'{file_name}.%(ext)s')  # ここでsave_pathを使います
+    ydl_opts['outtmpl'] = os.path.join(save_path, f'{file_name}.%(ext)s')
     ydl_opts['add-header'] = 'Accept-Language:ja-JP'
     ydl_opts['progress_hooks'] = [progress_hook]
 
@@ -100,16 +100,22 @@ def download_video_thread():
             result = ydl.extract_info(url, download=True)
             downloaded_file = ydl.prepare_filename(result)
 
-        # Update the file's modification time to today
+            # ポストプロセスがある場合のファイル名を確認
+            if 'ext' in result and result['ext'] != ext:
+                converted_file = downloaded_file.replace(f".{result['ext']}", f".{ext}")
+            else:
+                converted_file = downloaded_file
+
+        # ファイルのmtimeを現在の日時に更新
         now = datetime.datetime.now().timestamp()
-        os.utime(downloaded_file, (now, now))
+        os.utime(converted_file, (now, now))
 
         # Update status label
         status_label.configure(text="ダウンロード完了")
         progress_bar.set(1.0)
-        write_log(f"ダウンロード完了: {downloaded_file}")
-    except FileNotFoundError:  # Ignore the specific error when the file is not found
-        pass  # Simply ignore this error
+        write_log(f"ダウンロード完了: {converted_file}")
+    except FileNotFoundError:
+        pass
     except Exception as e:
         error_message = f"ダウンロードに失敗しました: {str(e)}"
         status_label.configure(text="ダウンロードに失敗しました")
@@ -189,10 +195,10 @@ radio_frame.grid(row=4, column=1, columnspan=2, pady=10)  # 横に広げる
 mp4_radio = ctk.CTkRadioButton(radio_frame, text="mp4", variable=format_var, value="mp4", font=("Yu Gothic", 14))
 mp4_radio.grid(row=0, column=0, padx=10)
 
-mp3_radio = ctk.CTkRadioButton(radio_frame, text="wav", variable=format_var, value="mp3", font=("Yu Gothic", 14))
+mp3_radio = ctk.CTkRadioButton(radio_frame, text="mp3", variable=format_var, value="mp3", font=("Yu Gothic", 14))
 mp3_radio.grid(row=0, column=1, padx=10)
 
-wav_radio = ctk.CTkRadioButton(radio_frame, text="mp3", variable=format_var, value="wav", font=("Yu Gothic", 14))
+wav_radio = ctk.CTkRadioButton(radio_frame, text="wav", variable=format_var, value="wav", font=("Yu Gothic", 14))
 wav_radio.grid(row=0, column=2, padx=10)
 
 # Download button
