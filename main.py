@@ -6,7 +6,6 @@ import datetime
 import configparser
 import threading
 import re
-import subprocess
 
 # Define the config file path in the same directory as the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,21 +33,6 @@ def write_log(message):
     with open(log_file, 'a', encoding='utf-8') as log:
         log.write(f'{datetime.datetime.now()}: {message}\n')
 
-def check_and_update_ytdlp():
-    try:
-        # Check for updates
-        result = subprocess.run(['yt-dlp', '--update'], capture_output=True, text=True)
-        if 'Updated yt-dlp' in result.stdout or 'yt-dlp is up to date' in result.stdout:
-            write_log("yt-dlpは最新の状態です。")
-        else:
-            write_log("yt-dlpの更新中にエラーが発生しました。")
-            write_log(result.stdout)
-            write_log(result.stderr)
-    except FileNotFoundError:  # Ignore the specific error when the file is not found
-        pass  # Simply ignore this error
-    except Exception as e:
-        write_log(f"yt-dlpの更新に失敗しました: {str(e)}")
-
 def download_video_thread():
     url = url_entry.get()
     save_path = save_path_entry.get()
@@ -58,8 +42,8 @@ def download_video_thread():
     if format_var.get() == "mp4":
         ext = "mp4"
         ydl_opts = {
-            'format': 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
-            'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
+            'format': f'bestvideo[height<={resolution_var.get()}]+bestaudio/best',
+            'merge_output_format': 'mp4',
         }
     elif format_var.get() == "mp3":
         ext = "mp3"
@@ -80,6 +64,9 @@ def download_video_thread():
                 'preferredcodec': 'wav',
             }]
         }
+    elif format_var.get() == "png":
+        ext = "png"
+        ydl_opts = {}
     else:
         messagebox.showerror("エラー", "少なくとも1つの形式を選択してください。")
         return
@@ -98,22 +85,31 @@ def download_video_thread():
     try:
         with YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(url, download=True)
-            downloaded_file = ydl.prepare_filename(result)
 
-            # ポストプロセスがある場合のファイル名を確認
-            if 'ext' in result and result['ext'] != ext:
-                converted_file = downloaded_file.replace(f".{result['ext']}", f".{ext}")
+            if format_var.get() == "png":
+                if 'thumbnails' in result:
+                    thumbnail_url = result['thumbnails'][-1]['url']
+                    thumbnail_path = os.path.join(save_path, f"{file_name}.png")
+                    ydl.download([thumbnail_url])
+
             else:
-                converted_file = downloaded_file
+                downloaded_file = ydl.prepare_filename(result)
 
-        # ファイルのmtimeを現在の日時に更新
-        now = datetime.datetime.now().timestamp()
-        os.utime(converted_file, (now, now))
+                # ポストプロセスがある場合のファイル名を確認
+                if 'ext' in result and result['ext'] != ext:
+                    converted_file = downloaded_file.replace(f".{result['ext']}", f".{ext}")
+                else:
+                    converted_file = downloaded_file
+
+                # ファイルのmtimeを現在の日時に更新
+                now = datetime.datetime.now().timestamp()
+                if os.path.exists(converted_file):
+                    os.utime(converted_file, (now, now))
 
         # Update status label
         status_label.configure(text="ダウンロード完了")
         progress_bar.set(1.0)
-        write_log(f"ダウンロード完了: {converted_file}")
+        write_log(f"ダウンロード完了: {converted_file if format_var.get() != 'png' else thumbnail_path}")
     except FileNotFoundError:
         pass
     except Exception as e:
@@ -188,7 +184,7 @@ format_var = ctk.StringVar(value="mp4")  # デフォルトでmp4を選択
 
 ctk.CTkLabel(frame, text="フォーマット", font=("Yu Gothic", 14)).grid(row=4, column=0, padx=10, pady=10)
 
-# MP4, MP3, WAV のラジオボタンを横に並べる
+# MP4, MP3, WAV, PNG のラジオボタンを横に並べる
 radio_frame = ctk.CTkFrame(frame)
 radio_frame.grid(row=4, column=1, columnspan=2, pady=10)  # 横に広げる
 
@@ -201,19 +197,26 @@ mp3_radio.grid(row=0, column=1, padx=10)
 wav_radio = ctk.CTkRadioButton(radio_frame, text="wav", variable=format_var, value="wav", font=("Yu Gothic", 14))
 wav_radio.grid(row=0, column=2, padx=10)
 
+png_radio = ctk.CTkRadioButton(radio_frame, text="png", variable=format_var, value="png", font=("Yu Gothic", 14))
+png_radio.grid(row=0, column=3, padx=10)
+
+# 解像度選択ドロップダウン
+resolution_var = ctk.StringVar(value="1080")
+resolution_label = ctk.CTkLabel(frame, text="解像度", font=("Yu Gothic", 14))
+resolution_label.grid(row=5, column=0, padx=10, pady=10)
+resolution_dropdown = ctk.CTkOptionMenu(frame, variable=resolution_var, values=["144", "240", "360", "480", "720", "1080", "1440", "2160"], font=("Yu Gothic", 14))
+resolution_dropdown.grid(row=5, column=1, padx=10, pady=10)
+
 # Download button
 download_button = ctk.CTkButton(frame, text="ダウンロード", command=download_video, font=("Yu Gothic", 14))
-download_button.grid(row=5, columnspan=3, pady=20)
+download_button.grid(row=6, columnspan=3, pady=20)
 
 # Status label and progress bar
 status_label = ctk.CTkLabel(frame, text="", font=("Yu Gothic", 14))
-status_label.grid(row=6, columnspan=3, pady=10)
+status_label.grid(row=7, columnspan=3, pady=10)
 
 progress_bar = ctk.CTkProgressBar(frame)
-progress_bar.grid(row=7, columnspan=3, padx=10, pady=10)
-
-# Check for updates on startup
-check_and_update_ytdlp()
+progress_bar.grid(row=8, columnspan=3, padx=10, pady=10)
 
 # Start the GUI loop
 root.mainloop()
