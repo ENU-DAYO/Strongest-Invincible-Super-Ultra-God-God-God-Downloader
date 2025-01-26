@@ -203,7 +203,8 @@ resolution_dropdown.grid(row=5, column=1, padx=10, pady=10)
 # サムネイルダウンロードチェックボックス
 thumbnail_var = ctk.BooleanVar(value=False)
 thumbnail_checkbox = ctk.CTkCheckBox(frame, text="サムネイルを一緒にダウンロードする", variable=thumbnail_var, font=("Yu Gothic", 14))
-thumbnail_checkbox.grid(row=6, column=0, columnspan=2, pady=10)
+thumbnail_checkbox.grid(row=6, column=0, columnspan=3, pady=10)
+
 
 # Download button
 download_button = ctk.CTkButton(frame, text="ダウンロード", command=download_video, font=("Yu Gothic", 14))
