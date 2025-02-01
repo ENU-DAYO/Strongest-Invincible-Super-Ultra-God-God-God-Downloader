@@ -38,17 +38,19 @@ def download_video_thread():
     save_path = save_path_entry.get()
     file_name = file_name_entry.get()
 
-    # ファイル形式の選択
     if format_var.get() == "mp4":
         ext = "mp4"
         ydl_opts = {
-            'format': f'bestvideo[height<={resolution_var.get()}]+bestaudio/best',
+            'format': f'bestvideo[height<={resolution_var.get()}]+bestaudio[ext=m4a]/bestaudio',
             'merge_output_format': 'mp4',
+            'outtmpl': os.path.join(save_path, file_name),  # 拡張子は明示しない
+            'add-header': 'Accept-Language:ja-JP'
         }
     elif format_var.get() == "mp3":
         ext = "mp3"
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio',  # m4a優先
+            'outtmpl': os.path.join(save_path, file_name),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -58,7 +60,8 @@ def download_video_thread():
     elif format_var.get() == "wav":
         ext = "wav"
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio',  # m4a優先
+            'outtmpl': os.path.join(save_path, file_name),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
@@ -66,6 +69,46 @@ def download_video_thread():
         }
     else:
         messagebox.showerror("エラー", "少なくとも1つの形式を選択してください。")
+        return
+
+    save_settings(save_path)
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # 余計な .mp4.mp4 の削除
+        downloaded_file = os.path.join(save_path, f"{file_name}.{ext}.{ext}")
+        correct_file = os.path.join(save_path, f"{file_name}.{ext}")
+        if os.path.exists(downloaded_file):
+            os.rename(downloaded_file, correct_file)
+
+        status_label.configure(text="ダウンロード完了")
+        progress_bar.set(1.0)
+        write_log(f"ダウンロード完了: {correct_file}")
+    except Exception as e:
+        error_message = f"ダウンロードに失敗しました: {str(e)}"
+        status_label.configure(text="ダウンロードに失敗しました")
+        write_log(error_message)
+        messagebox.showerror("エラー", error_message)
+
+        return
+
+    save_settings(save_path)
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        
+        status_label.configure(text="ダウンロード中...")
+        progress_bar.set(1.0)
+        write_log(f"ダウンロード完了: {file_name}.{ext}")
+    except Exception as e:
+        error_message = f"ダウンロードに失敗しました: {str(e)}"
+        status_label.configure(text="ダウンロードに失敗しました")
+        write_log(error_message)
+        messagebox.showerror("エラー", error_message)
+
         return
 
     save_settings(save_path)
